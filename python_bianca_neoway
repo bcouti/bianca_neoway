@@ -1,0 +1,84 @@
+### Estrutura de um projeto básico em Python ###
+
+# === app/main.py ===
+from fastapi import FastAPI, Request
+from pydantic import BaseModel
+from prompt_context import contexto
+from search_and_rank import search_and_rank
+import json
+
+app = FastAPI()
+
+class Question(BaseModel):
+    pergunta: str
+
+class Feedback(BaseModel):
+    pergunta: str
+    resposta: str
+    util: bool
+
+@app.post("/ask")
+async def ask_question(question: Question):
+    respostas = search_and_rank(question.pergunta)
+    return {"resposta": respostas[0], "outras_opcoes": respostas[1:]}
+
+@app.post("/feedback")
+async def feedback(data: Feedback):
+    with open("app/feedback_store.json", "r+") as f:
+        feedbacks = json.load(f)
+        feedbacks.append(data.dict())
+        f.seek(0)
+        json.dump(feedbacks, f, indent=4)
+    return {"mensagem": "Feedback recebido!"}
+
+# === app/prompt_context.py ===
+contexto = """
+Você é um assistente de suporte da Neoway. Use a base de conhecimento interna para responder dúvidas sobre cadastros, erros de dados, funcionalidades de produto e integrações. Responda de forma clara, objetiva e com base nos dados disponíveis. Em caso de dúvida, oriente o usuário a abrir um chamado com a equipe de suporte técnico.
+"""
+
+# === app/knowledge_base.json ===
+[
+    {"pergunta": "Como cadastrar um novo usuário?", "resposta": "Para cadastrar um novo usuário, acesse o menu de configurações, selecione 'Usuários' e clique em 'Novo Cadastro'."},
+    {"pergunta": "O que fazer em caso de erro de dados?", "resposta": "Em caso de erro de dados, revise o arquivo de entrada e certifique-se de que os dados estão no formato correto."},
+    {"pergunta": "Como redefinir a senha?", "resposta": "Clique em 'Esqueci minha senha' na tela de login e siga as instruções enviadas por e-mail."}
+]
+
+# === app/search_and_rank.py ===
+from sentence_transformers import SentenceTransformer, util
+import json
+
+model = SentenceTransformer('all-MiniLM-L6-v2')
+
+with open("app/knowledge_base.json") as f:
+    knowledge_base = json.load(f)
+    perguntas_base = [item["pergunta"] for item in knowledge_base]
+    respostas_base = [item["resposta"] for item in knowledge_base]
+    embeddings_base = model.encode(perguntas_base, convert_to_tensor=True)
+
+def search_and_rank(pergunta_usuario):
+    embedding_usuario = model.encode(pergunta_usuario, convert_to_tensor=True)
+    similaridades = util.pytorch_cos_sim(embedding_usuario, embeddings_base)[0]
+    indices = similaridades.argsort(descending=True)
+    respostas_ordenadas = [respostas_base[i] for i in indices]
+    return respostas_ordenadas[:3]
+
+# === app/feedback_store.json ===
+[]
+
+# === docker-compose.yml ===
+version: '3.9'
+services:
+  app:
+    build: .
+    volumes:
+      - .:/code
+    ports:
+      - "8000:8000"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    environment:
+      - PYTHONUNBUFFERED=1
+
+# === README.md ===
+# Mecanismo de Resposta a Dúvidas com IA - Neoway
+
+Este projeto é um protótipo de assistente de suporte com IA para responder dúvidas baseado em uma base de conhecimento.
