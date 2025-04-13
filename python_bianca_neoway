@@ -77,8 +77,3 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     environment:
       - PYTHONUNBUFFERED=1
-
-# === README.md ===
-# Mecanismo de Resposta a Dúvidas com IA - Neoway
-
-Este projeto é um protótipo de assistente de suporte com IA para responder dúvidas baseado em uma base de conhecimento.
