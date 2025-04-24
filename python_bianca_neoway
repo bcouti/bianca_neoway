@@ -3,8 +3,8 @@
 # === app/main.py ===
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
-from prompt_context import contexto
-from search_and_rank import search_and_rank
+from app.prompt_context import contexto
+from app.search_and_rank import search_and_rank
 import json
 
 app = FastAPI()
